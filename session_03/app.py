@@ -93,7 +93,14 @@ with tab1:
         r"\mathbf{x} = \begin{pmatrix} x_A \\ x_B \\ x_C \end{pmatrix} \geq 0"
     )
     with st.expander("📄 Show code"):
-        st.code("x = cp.Variable(3, nonneg=True)   # x_A, x_B, x_C ≥ 0", language="python")
+        st.code(
+            "import numpy as np\n"
+            "import cvxpy as cp\n"
+            "\n"
+            "products = [\"A\", \"B\", \"C\"]\n"
+            "x = cp.Variable(3, nonneg=True)   # x_A, x_B, x_C ≥ 0",
+            language="python",
+        )
     st.divider()
 
     # ── Step 2: Objective function ────────────────────────────────────────────
@@ -105,7 +112,8 @@ with tab1:
     st.latex(r"\max\; 20\,x_A + 25\,x_B + 18\,x_C \;=\; \max\; \mathbf{p}^\top \mathbf{x}")
     with st.expander("📄 Show code"):
         st.code(
-            "profit = np.array([20., 25., 18.])\nobjective = cp.Maximize(profit @ x)",
+            "profit = np.array([20., 25., 18.])\n"
+            "objective = cp.Maximize(profit @ x)",
             language="python",
         )
     st.divider()
@@ -125,10 +133,11 @@ with tab1:
         st.code(
             "a1 = np.array([2., 3., 1.])   # M1 hours per unit\n"
             "a2 = np.array([1., 1., 2.])   # M2 hours per unit\n"
+            "c1, c2 = 100., 80.             # machine capacities\n"
             "\n"
             "constraints = [\n"
-            "    a1 @ x <= 100,   # Machine 1 capacity\n"
-            "    a2 @ x <= 80,    # Machine 2 capacity\n"
+            "    a1 @ x <= c1,   # Machine 1 capacity\n"
+            "    a2 @ x <= c2,   # Machine 2 capacity\n"
             "]",
             language="python",
         )
@@ -202,7 +211,7 @@ with tab1:
     )
 
     if x_t1 is not None:
-        tol = 1e-5
+        tol = 1e-6
         used_m1 = A1 @ x_t1
         used_m2 = A2 @ x_t1
 
@@ -246,23 +255,25 @@ with tab1:
             and np.all(x_t1 >= -tol)
         )
         if all_ok:
-            st.success("✓ All constraints satisfied (numerical tolerance 1e-5)")
+            st.success("✓ All constraints satisfied (numerical tolerance 1e-6)")
         else:
             st.error("✗ Constraint violation detected!")
 
         with st.expander("📄 Show verification code"):
             st.code(
                 "# Numerical tolerance: solver results are never exactly 100.0,\n"
-                "# but e.g. 99.9999998 — we allow a tiny gap of 1e-5\n"
-                "tol = 1e-5\n"
+                "# but e.g. 99.9999998 — we allow a tiny gap of 1e-6\n"
+                "tol = 1e-6\n"
                 "\n"
                 "# a1 = [2, 3, 1]: machine hours per unit on M1\n"
                 "# a1 @ x.value = 2*x_A + 3*x_B + 1*x_C  →  total hours used on M1\n"
                 "used_m1  = a1 @ x.value\n"
+                "used_m2  = a2 @ x.value\n"
                 "\n"
                 "# How many hours are left unused on M1\n"
                 "# slack = 0 means the machine is running at full capacity (constraint is active/binding)\n"
                 "slack_m1 = c1 - used_m1\n"
+                "slack_m2 = c2 - used_m2\n"
                 "\n"
                 "# For each product: is the produced quantity (almost) equal to max demand?\n"
                 "# True → demand constraint is active (no slack left in the market)\n"
@@ -361,6 +372,8 @@ with tab3:
     with st.expander("📄 Show Python code"):
         st.code(
             """\
+baseline_value = prob.value
+
 scenarios = {
     "Baseline":           (profit,                   c1,   c2,   d_max),
     "Higher Profit for C":  (np.array([20.,25.,30.]), c1,   c2,   d_max),
@@ -768,6 +781,9 @@ results = [
     run_experiment("Demand doubled",  [20, 25, 18], 100, 80,  [80, 60, 100]),
     run_experiment("Only product A",  [20,  1,  1], 100, 80,  [40, 30, 50]),
 ]
+
+for result in results:
+    print(result["name"], result["status"], result["profit"], result["plan"])
 """,
             language="python",
         )
