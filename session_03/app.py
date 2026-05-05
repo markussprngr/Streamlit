@@ -295,9 +295,9 @@ with tab3:
 
     scenarios = {
         "Baseline":            (BASE_PROFIT.copy(), BASE_C1, BASE_C2, BASE_DMAX.copy()),
-        "S1: Profit C → 30":   (np.array([20.0, 25.0, 30.0]), BASE_C1, BASE_C2, BASE_DMAX.copy()),
-        "S2: M2 cap. → 110":   (BASE_PROFIT.copy(), BASE_C1, 110.0, BASE_DMAX.copy()),
-        "S3: Demand B → 10":   (BASE_PROFIT.copy(), BASE_C1, BASE_C2, np.array([40.0, 10.0, 50.0])),
+        "Higher Profit for C":   (np.array([20.0, 25.0, 30.0]), BASE_C1, BASE_C2, BASE_DMAX.copy()),
+        "More Capacity on Machine 2":   (BASE_PROFIT.copy(), BASE_C1, 110.0, BASE_DMAX.copy()),
+        "Lower Demand for B":   (BASE_PROFIT.copy(), BASE_C1, BASE_C2, np.array([40.0, 10.0, 50.0])),
     }
 
     records = []
@@ -363,9 +363,9 @@ with tab3:
             """\
 scenarios = {
     "Baseline":           (profit,                   c1,   c2,   d_max),
-    "S1: Profit C → 30":  (np.array([20.,25.,30.]), c1,   c2,   d_max),
-    "S2: M2 cap → 110":   (profit,                   c1,   110., d_max),
-    "S3: Demand B → 10":  (profit,                   c1,   c2,   np.array([40.,10.,50.])),
+    "Higher Profit for C":  (np.array([20.,25.,30.]), c1,   c2,   d_max),
+    "More Capacity on Machine 2":   (profit,                   c1,   110., d_max),
+    "Lower Demand for B":  (profit,                   c1,   c2,   np.array([40.,10.,50.])),
 }
 
 for name, (p, c1_s, c2_s, d) in scenarios.items():
@@ -423,20 +423,20 @@ with tab4:
     with col_model:
         st.subheader("Model")
         st.markdown(
-            "**Decision variables:** production $X$, sales $Y$, and inventory $S$ "
+            "**Decision variables:** production $x$, sales $y$, and inventory $s$ "
             "for all products and both periods."
         )
-        st.latex(r"X,Y,S \in \mathbb{R}_{\geq 0}^{3 \times 2}")
-        st.latex(r"Y_{i,t} \leq d_{i,t}^{\max}")
-        st.latex(r"S_{i,1} = X_{i,1} - Y_{i,1}")
-        st.latex(r"S_{i,2} = S_{i,1} + X_{i,2} - Y_{i,2}")
+        st.latex(r"x_t, y_t, s_t \in \mathbb{R}_{\geq 0}^{3}, \qquad t \in \{1,2\}")
+        st.latex(r"0 \leq y_1 \leq d^{(1)}, \qquad 0 \leq y_2 \leq d^{(2)}")
+        st.latex(r"s_1 = x_1 - y_1")
+        st.latex(r"s_2 = s_1 + x_2 - y_2")
         st.latex(
-            r"\max\; p^\top Y_{:,1} + p^\top Y_{:,2} "
-            r"- h \sum_i S_{i,1}"
+            r"\max\; p_{\mathrm{profit}}^\top y_1 + p_{\mathrm{profit}}^\top y_2 "
+            r"- h\,\mathbf{1}^\top s_1 - h\,\mathbf{1}^\top s_2"
         )
         st.caption(
-            "Only carryover from period 1 to period 2 is useful in this two-period horizon; "
-            "unsold stock after period 2 has no value in the model."
+            "This demo additionally imposes s₂ = 0. Therefore the final-inventory cost term is "
+            "included in the notation but evaluates to zero in the solved instance."
         )
 
     st.divider()
@@ -445,21 +445,24 @@ with tab4:
 
     col_results = st.container()
 
-    X4 = cp.Variable((3, 2), nonneg=True)   # production
-    Y4 = cp.Variable((3, 2), nonneg=True)   # sales
-    S4 = cp.Variable((3, 2), nonneg=True)   # inventory
+    x_var = cp.Variable((3, 2), nonneg=True)   # production x_i,t
+    y_var = cp.Variable((3, 2), nonneg=True)   # sales y_i,t
+    s_var = cp.Variable((3, 2), nonneg=True)   # inventory s_i,t
 
     obj4 = cp.Maximize(
-        profit_t4 @ Y4[:, 0] + profit_t4 @ Y4[:, 1] - hc * cp.sum(S4[:, 0])
+        profit_t4 @ y_var[:, 0]
+        + profit_t4 @ y_var[:, 1]
+        - hc * cp.sum(s_var[:, 0])
+        - hc * cp.sum(s_var[:, 1])
     )
     cons4 = [
-        A1 @ X4[:, 0] <= 100.0, A2 @ X4[:, 0] <= 80.0,   # machine P1
-        A1 @ X4[:, 1] <= 100.0, A2 @ X4[:, 1] <= 80.0,   # machine P2
-        Y4[:, 0] <= d_t1,                                  # demand upper bound P1
-        Y4[:, 1] <= d_t2,                                  # demand upper bound P2
-        S4[:, 0] == X4[:, 0] - Y4[:, 0],                  # inventory balance P1
-        S4[:, 1] == S4[:, 0] + X4[:, 1] - Y4[:, 1],       # inventory balance P2
-        S4[:, 1] == 0,                                    # no unsold stock after horizon
+        A1 @ x_var[:, 0] <= 100.0, A2 @ x_var[:, 0] <= 80.0,   # machine P1
+        A1 @ x_var[:, 1] <= 100.0, A2 @ x_var[:, 1] <= 80.0,   # machine P2
+        y_var[:, 0] <= d_t1,                                   # demand upper bound P1
+        y_var[:, 1] <= d_t2,                                   # demand upper bound P2
+        s_var[:, 0] == x_var[:, 0] - y_var[:, 0],              # inventory balance P1
+        s_var[:, 1] == s_var[:, 0] + x_var[:, 1] - y_var[:, 1], # inventory balance P2
+        s_var[:, 1] == 0,                                      # no unsold stock after horizon
     ]
     prob4 = cp.Problem(obj4, cons4)
     prob4.solve(solver=cp.CLARABEL)
@@ -467,9 +470,9 @@ with tab4:
     with col_results:
         if prob4.status == "optimal":
             # Clip numerical noise from interior-point solver (values < 1e-4 are effectively 0)
-            x4 = np.where(np.abs(X4.value) < 1e-4, 0.0, X4.value)
-            y4 = np.where(np.abs(Y4.value) < 1e-4, 0.0, Y4.value)
-            s4 = np.where(np.abs(S4.value) < 1e-4, 0.0, S4.value)
+            x4 = np.where(np.abs(x_var.value) < 1e-4, 0.0, x_var.value)
+            y4 = np.where(np.abs(y_var.value) < 1e-4, 0.0, y_var.value)
+            s4 = np.where(np.abs(s_var.value) < 1e-4, 0.0, s_var.value)
 
             total_revenue = float(profit_t4 @ y4[:, 0] + profit_t4 @ y4[:, 1])
             total_holding = float(hc * np.sum(s4[:, 0]))
@@ -479,7 +482,7 @@ with tab4:
             m1.metric("Objective", f"{prob4.value:.2f} €")
             m2.metric("Sales revenue", f"{total_revenue:.2f} €")
             m3.metric("Holding cost", f"{total_holding:.2f} €")
-            m4.metric("Carryover after P1", f"{carryover_units:.2f} units")
+            m4.metric("Carryover s₁", f"{carryover_units:.2f} units")
 
             fig4, axes = plt.subplots(1, 3, figsize=(12, 3.8))
             idx = np.arange(3)
@@ -488,19 +491,19 @@ with tab4:
             axes[0].bar(idx - w/2, x4[:, 0], w, label="Period 1", color="#1976D2", edgecolor="black")
             axes[0].bar(idx + w/2, x4[:, 1], w, label="Period 2", color="#90CAF9", edgecolor="black")
             axes[0].set_xticks(idx); axes[0].set_xticklabels(PRODUCTS)
-            axes[0].set_ylabel("Units"); axes[0].set_title("Production X")
+            axes[0].set_ylabel("Units"); axes[0].set_title("Production x")
             axes[0].legend(); axes[0].grid(axis="y", alpha=0.4)
 
             axes[1].bar(idx - w/2, y4[:, 0], w, label="Period 1", color="#388E3C", edgecolor="black")
             axes[1].bar(idx + w/2, y4[:, 1], w, label="Period 2", color="#A5D6A7", edgecolor="black")
             axes[1].set_xticks(idx); axes[1].set_xticklabels(PRODUCTS)
-            axes[1].set_ylabel("Units"); axes[1].set_title("Sales Y")
+            axes[1].set_ylabel("Units"); axes[1].set_title("Sales y")
             axes[1].legend(); axes[1].grid(axis="y", alpha=0.4)
 
             axes[2].bar(idx - w/2, s4[:, 0], w, label="After P1", color="#F57C00", edgecolor="black")
             axes[2].bar(idx + w/2, s4[:, 1], w, label="After P2", color="#FFCC80", edgecolor="black")
             axes[2].set_xticks(idx); axes[2].set_xticklabels(PRODUCTS)
-            axes[2].set_ylabel("Units"); axes[2].set_title("Inventory S")
+            axes[2].set_ylabel("Units"); axes[2].set_title("Inventory s")
             axes[2].legend(); axes[2].grid(axis="y", alpha=0.4)
             if s4.max() < 0.01:
                 axes[2].set_ylim(0, 1)  # show empty chart clearly when no inventory
@@ -511,13 +514,13 @@ with tab4:
 
             c4a, c4b, c4c = st.columns(3)
             with c4a:
-                st.markdown("**Production X**")
+                st.markdown("**Production x**")
                 st.dataframe(pd.DataFrame(x4.round(2), index=PRODUCTS, columns=["P1", "P2"]), use_container_width=True)
             with c4b:
-                st.markdown("**Sales Y**")
+                st.markdown("**Sales y**")
                 st.dataframe(pd.DataFrame(y4.round(2), index=PRODUCTS, columns=["P1", "P2"]), use_container_width=True)
             with c4c:
-                st.markdown("**Inventory S**")
+                st.markdown("**Inventory s**")
                 st.dataframe(pd.DataFrame(s4.round(2), index=PRODUCTS, columns=["After P1", "After P2"]), use_container_width=True)
 
             cap_rows = []
@@ -580,31 +583,32 @@ with tab4:
                     "d_t2 = np.array([25., 20., 35.])  # max demand period 2 (upper bound)\n"
                     "holding_cost = 1.0\n"
                     "\n"
-                    "X = cp.Variable((3, 2), nonneg=True)  # X[i,t]: units produced\n"
-                    "Y = cp.Variable((3, 2), nonneg=True)  # Y[i,t]: units sold (≤ demand)\n"
-                    "S = cp.Variable((3, 2), nonneg=True)  # S[i,t]: inventory after period t\n"
+                    "x = cp.Variable((3, 2), nonneg=True)  # x[i,t]: units produced\n"
+                    "y = cp.Variable((3, 2), nonneg=True)  # y[i,t]: units sold (≤ demand)\n"
+                    "s = cp.Variable((3, 2), nonneg=True)  # s[i,t]: inventory after period t\n"
                     "\n"
                     "prob = cp.Problem(\n"
                     "    cp.Maximize(\n"
-                    "        profit @ Y[:, 0] + profit @ Y[:, 1]  # revenue from sales\n"
-                    "        - holding_cost * cp.sum(S[:, 0])      # carryover storage cost\n"
+                    "        profit @ y[:, 0] + profit @ y[:, 1]  # revenue from sales\n"
+                    "        - holding_cost * cp.sum(s[:, 0])      # inventory cost after P1\n"
+                    "        - holding_cost * cp.sum(s[:, 1])      # inventory cost after P2\n"
                     "    ),\n"
                     "    [\n"
-                    "        a1 @ X[:, 0] <= 100,  a2 @ X[:, 0] <= 80,  # machine P1\n"
-                    "        a1 @ X[:, 1] <= 100,  a2 @ X[:, 1] <= 80,  # machine P2\n"
-                    "        Y[:, 0] <= d_t1,           # sales upper bound P1\n"
-                    "        Y[:, 1] <= d_t2,           # sales upper bound P2\n"
-                    "        S[:, 0] == X[:, 0] - Y[:, 0],             # balance P1\n"
-                    "        S[:, 1] == S[:, 0] + X[:, 1] - Y[:, 1],  # balance P2\n"
-                    "        S[:, 1] == 0,                            # no unsold stock after horizon\n"
+                    "        a1 @ x[:, 0] <= 100,  a2 @ x[:, 0] <= 80,  # machine P1\n"
+                    "        a1 @ x[:, 1] <= 100,  a2 @ x[:, 1] <= 80,  # machine P2\n"
+                    "        y[:, 0] <= d_t1,           # sales upper bound P1\n"
+                    "        y[:, 1] <= d_t2,           # sales upper bound P2\n"
+                    "        s[:, 0] == x[:, 0] - y[:, 0],             # balance P1\n"
+                    "        s[:, 1] == s[:, 0] + x[:, 1] - y[:, 1],  # balance P2\n"
+                    "        s[:, 1] == 0,                            # no unsold stock after horizon\n"
                     "    ]\n"
                     ")\n"
                     "prob.solve()\n"
                     "\n"
-                    "print('Production X:', X.value.round(2))\n"
-                    "print('Sales Y:     ', Y.value.round(2))\n"
-                    "print('Inventory plan S:')\n"
-                    "print(S.value.round(2))",
+                    "print('Production x:', x.value.round(2))\n"
+                    "print('Sales y:     ', y.value.round(2))\n"
+                    "print('Inventory plan s:')\n"
+                    "print(s.value.round(2))",
                     language="python",
                 )
         else:
