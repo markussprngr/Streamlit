@@ -637,21 +637,21 @@ with tab5:
     st.header("Task 5 — Automatic Experiment Framework")
     st.markdown(
         "Define any parameter set, run it, and results accumulate in the table. "
-        "Or load the 5 default experiments to get started instantly."
+        "Or load the 6 default experiments to get started instantly."
     )
 
     if "experiments" not in st.session_state:
         st.session_state.experiments = []
 
     # ── Pre-load defaults ─────────────────────────────────────────────────────
-    if st.button("⚡ Load 5 default experiments"):
+    if st.button("⚡ Load 6 default experiments"):
         defaults = [
             ("Baseline",         [20, 25, 18], 100, 80,  [40, 30, 50]),
             ("High profit C",    [20, 25, 30], 100, 80,  [40, 30, 50]),
             ("Tight M1 (50h)",   [20, 25, 18],  50, 80,  [40, 30, 50]),
             ("Demand doubled",   [20, 25, 18], 100, 80,  [80, 60, 100]),
             ("Only A matters",   [20,  1,  1], 100, 80,  [40, 30, 50]),
-            ("Full capacity",    [20, 25, 18], 150, 120, [40, 30, 50]),
+            ("High capacity",    [20, 25, 18], 220, 170, [40, 30, 50]),
         ]
         for name, p, c1_d, c2_d, d in defaults:
             val, x = solve_lp(
@@ -752,7 +752,7 @@ with tab5:
             st.rerun()
     else:
         st.info(
-            "No experiments yet — click **Load 5 default experiments** "
+            "No experiments yet — click **Load 6 default experiments** "
             "or add your own via the form above."
         )
 
@@ -773,13 +773,14 @@ def run_experiment(name, profit, c1, c2, d_max):
         "plan":   x.value,
     }
 
-# Run 5+ scenarios
+# Run 6 scenarios
 results = [
     run_experiment("Baseline",        [20, 25, 18], 100, 80,  [40, 30, 50]),
     run_experiment("High profit C",   [20, 25, 30], 100, 80,  [40, 30, 50]),
     run_experiment("Tight M1 (50h)",  [20, 25, 18],  50, 80,  [40, 30, 50]),
     run_experiment("Demand doubled",  [20, 25, 18], 100, 80,  [80, 60, 100]),
-    run_experiment("Only product A",  [20,  1,  1], 100, 80,  [40, 30, 50]),
+    run_experiment("Only A matters",  [20,  1,  1], 100, 80,  [40, 30, 50]),
+    run_experiment("High capacity",   [20, 25, 18], 220, 170, [40, 30, 50]),
 ]
 
 for result in results:
