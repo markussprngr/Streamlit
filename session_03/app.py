@@ -432,6 +432,14 @@ with tab4:
             value=1.0,
             step=0.25,
         )
+        force_final_inventory_zero = st.checkbox(
+            "No remaining stock after period 2 (s₂ = 0)",
+            value=False,
+            help=(
+                "Optional constraint from the clarification document. "
+                "Without it, final inventory is allowed but still penalized by holding costs."
+            ),
+        )
 
     with col_model:
         st.subheader("Model")
@@ -447,10 +455,15 @@ with tab4:
             r"\max\; p_{\mathrm{profit}}^\top y_1 + p_{\mathrm{profit}}^\top y_2 "
             r"- h\,\mathbf{1}^\top s_1 - h\,\mathbf{1}^\top s_2"
         )
-        st.caption(
-            "This demo additionally imposes s₂ = 0. Therefore the final-inventory cost term is "
-            "included in the notation but evaluates to zero in the solved instance."
-        )
+        if force_final_inventory_zero:
+            st.latex(r"s_2 = 0 \qquad \text{(optional terminal inventory constraint)}")
+            st.caption(
+                "The optional terminal constraint is active: no unsold stock may remain after period 2."
+            )
+        else:
+            st.caption(
+                "Final inventory is allowed here, but it remains part of the holding-cost term."
+            )
 
     st.divider()
 
@@ -475,8 +488,10 @@ with tab4:
         y_var[:, 1] <= d_t2,                                   # demand upper bound P2
         s_var[:, 0] == x_var[:, 0] - y_var[:, 0],              # inventory balance P1
         s_var[:, 1] == s_var[:, 0] + x_var[:, 1] - y_var[:, 1], # inventory balance P2
-        s_var[:, 1] == 0,                                      # no unsold stock after horizon
     ]
+    if force_final_inventory_zero:
+        cons4.append(s_var[:, 1] == 0)                         # optional terminal inventory constraint
+
     prob4 = cp.Problem(obj4, cons4)
     prob4.solve(solver=cp.CLARABEL)
 
@@ -488,14 +503,16 @@ with tab4:
             s4 = np.where(np.abs(s_var.value) < 1e-4, 0.0, s_var.value)
 
             total_revenue = float(profit_t4 @ y4[:, 0] + profit_t4 @ y4[:, 1])
-            total_holding = float(hc * np.sum(s4[:, 0]))
+            total_holding = float(hc * np.sum(s4))
             carryover_units = float(np.sum(s4[:, 0]))
+            final_inventory_units = float(np.sum(s4[:, 1]))
 
-            m1, m2, m3, m4 = st.columns(4)
+            m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("Objective", f"{prob4.value:.2f} €")
             m2.metric("Sales revenue", f"{total_revenue:.2f} €")
             m3.metric("Holding cost", f"{total_holding:.2f} €")
             m4.metric("Carryover s₁", f"{carryover_units:.2f} units")
+            m5.metric("Final inventory s₂", f"{final_inventory_units:.2f} units")
 
             fig4, axes = plt.subplots(1, 3, figsize=(12, 3.8))
             idx = np.arange(3)
@@ -561,40 +578,48 @@ with tab4:
             st.markdown("**Capacity check**")
             st.dataframe(pd.DataFrame(cap_rows), use_container_width=True, hide_index=True)
 
-            if carryover_units < 1e-4:
+            if carryover_units < 1e-4 and final_inventory_units < 1e-4:
                 st.info(
-                    "No carryover is used in this scenario. That is a valid optimum: "
+                    "No inventory is used in this scenario. That is a valid optimum: "
                     "with these parameters, selling from each period's own production is better "
-                    "than producing early and paying holding costs."
+                    "than producing early or keeping stock."
                 )
             elif hc == 0:
                 st.info(
-                    f"Carryover is used: {carryover_units:.2f} units are produced in period 1 "
-                    "and sold in period 2. With zero holding cost, several optimal plans can have "
-                    "the same objective value."
+                    f"Inventory appears in the solution: carryover s₁ = {carryover_units:.2f} units, "
+                    f"final stock s₂ = {final_inventory_units:.2f} units. With zero holding cost, "
+                    "several optimal plans can have the same objective value."
                 )
             else:
                 st.info(
-                    f"Carryover is used: {carryover_units:.2f} units are produced in period 1 "
-                    "and sold in period 2."
+                    f"Inventory appears in the solution: carryover s₁ = {carryover_units:.2f} units, "
+                    f"final stock s₂ = {final_inventory_units:.2f} units."
                 )
 
             tol4 = 1e-4
             bal_ok = (
                 np.allclose(s4[:, 0], x4[:, 0] - y4[:, 0], atol=tol4)
                 and np.allclose(s4[:, 1], s4[:, 0] + x4[:, 1] - y4[:, 1], atol=tol4)
-                and np.allclose(s4[:, 1], 0.0, atol=tol4)
             )
+            terminal_ok = (not force_final_inventory_zero) or np.allclose(s4[:, 1], 0.0, atol=tol4)
             if bal_ok:
-                st.success("✓ Inventory balance equations satisfied and final inventory is zero")
+                if terminal_ok and force_final_inventory_zero:
+                    st.success("✓ Inventory balance equations satisfied and optional s₂ = 0 constraint holds")
+                else:
+                    st.success("✓ Inventory balance equations satisfied")
             else:
                 st.warning("⚠ Inventory balance check failed")
 
             with st.expander("📄 Show full solve code"):
+                terminal_constraint_code = (
+                    "        s[:, 1] == 0,                            # optional: no stock after P2\n"
+                    if force_final_inventory_zero
+                    else ""
+                )
                 st.code(
                     "d_t1 = np.array([20., 15., 30.])  # max demand period 1 (upper bound)\n"
                     "d_t2 = np.array([25., 20., 35.])  # max demand period 2 (upper bound)\n"
-                    "holding_cost = 1.0\n"
+                    f"holding_cost = {hc:.2f}\n"
                     "\n"
                     "x = cp.Variable((3, 2), nonneg=True)  # x[i,t]: units produced\n"
                     "y = cp.Variable((3, 2), nonneg=True)  # y[i,t]: units sold (≤ demand)\n"
@@ -613,7 +638,7 @@ with tab4:
                     "        y[:, 1] <= d_t2,           # sales upper bound P2\n"
                     "        s[:, 0] == x[:, 0] - y[:, 0],             # balance P1\n"
                     "        s[:, 1] == s[:, 0] + x[:, 1] - y[:, 1],  # balance P2\n"
-                    "        s[:, 1] == 0,                            # no unsold stock after horizon\n"
+                    f"{terminal_constraint_code}"
                     "    ]\n"
                     ")\n"
                     "prob.solve()\n"
