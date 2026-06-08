@@ -1,17 +1,20 @@
-# OML Group 7 - Session 3 Streamlit Dashboard
+# OML Group 7 - Streamlit Dashboards
 
-Streamlit dashboard for FH Aachen's Optimization and Machine Learning practical session 3.
+Interactive dashboards for FH Aachen's Optimization and Machine Learning
+practical sessions.
 
 ## Run locally
 
 ```bash
 streamlit run session_03/app.py
+streamlit run session_06/app.py
 ```
 
 ## Streamlit Community Cloud
 
-Main file path:
+App entrypoints:
 
 ```text
 session_03/app.py
+session_06/app.py
 ```
