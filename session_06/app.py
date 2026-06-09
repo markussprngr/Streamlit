@@ -277,6 +277,16 @@ GOETZE = np.array([[8.0, 0.4]])
 COLORS = {-1: "#ff6b52", 1: "#177e68"}
 
 
+def show_notebook_code(title, code):
+    """Show a compact Jupyter-style solution without Streamlit-specific code."""
+    with st.expander(f"Notebook code · {title}"):
+        st.caption(
+            "Compact presentation version matching the calculation shown above. "
+            "Interactive Streamlit controls are intentionally omitted."
+        )
+        st.code(code.strip(), language="python")
+
+
 def boundary_plot(
     X,
     y,
@@ -429,19 +439,29 @@ with tab_data:
         fig = boundary_plot(X_TRAIN, Y_TRAIN, names=NAMES, new_point=GOETZE)
         st.pyplot(fig, width="stretch")
         plt.close(fig)
-    with st.expander("Show data preparation code"):
-        st.code(
-            """import numpy as np
+    show_notebook_code(
+        "Task 1 · Prepare and visualize the data",
+        """
+import numpy as np
+import matplotlib.pyplot as plt
 
-X = np.array([[10.0, 0.1], [2.0, 0.7], [6.0, 0.6], [8.0, 0.1]])
+X = np.array([[10.0, 0.1], [2.0, 0.7],
+              [ 6.0, 0.6], [8.0, 0.1]])
 y = np.array([+1, -1, +1, -1])
-x_goetze = np.array([[8.0, 0.4]])
+x_goetze = np.array([[8.0, 0.4]])  # not used for training
 
-# Optional bias trick:
-X_augmented = np.c_[X, np.ones(len(X))]
+for label, marker in [(-1, "s"), (+1, "o")]:
+    mask = y == label
+    plt.scatter(X[mask, 0], X[mask, 1],
+                marker=marker, label=f"Class {label:+d}")
+
+plt.scatter(*x_goetze[0], marker="*", s=180, label="Götze (?)")
+plt.xlabel("Goals")
+plt.ylabel("PCR value")
+plt.legend()
+plt.show()
 """,
-            language="python",
-        )
+    )
 
 with tab_train:
     st.header("Tasks 2 & 3 · Perceptron training, prediction, and boundary")
@@ -528,26 +548,43 @@ with tab_train:
         f"b = {result.bias:.4f}. The separator is not unique; settings can change the learned boundary."
     )
 
-    with st.expander("Show from-scratch implementation"):
-        st.code(
-            """def train_perceptron(X, y, alpha=1.0, max_epochs=100):
+    show_notebook_code(
+        "Tasks 2 & 3 · Train, predict, and plot the boundary",
+        """
+def perceptron_from_scratch(X, y, alpha=1.0, max_epochs=500):
     w = np.zeros(X.shape[1])
     b = 0.0
 
     for epoch in range(max_epochs):
-        errors = 0
+        updates = 0
         for x_i, y_i in zip(X, y):
             if y_i * (w @ x_i + b) <= 0:
-                w = w + alpha * y_i * x_i
-                b = b + alpha * y_i
-                errors += 1
-        if errors == 0:
+                w += alpha * y_i * x_i
+                b += alpha * y_i
+                updates += 1
+        if updates == 0:
             break
-
     return w, b
+
+w, b = perceptron_from_scratch(X, y)
+train_prediction = np.where(X @ w + b >= 0, +1, -1)
+goetze_prediction = np.where(x_goetze @ w + b >= 0, +1, -1)[0]
+
+x_line = np.linspace(X[:, 0].min() - 1, X[:, 0].max() + 1, 200)
+y_line = -(w[0] * x_line + b) / w[1]
+plt.scatter(X[:, 0], X[:, 1], c=y, cmap="coolwarm")
+plt.scatter(*x_goetze[0], marker="*", s=180, label="Götze")
+plt.plot(x_line, y_line, "k-", label="Decision boundary")
+plt.xlabel("Goals")
+plt.ylabel("PCR value")
+plt.legend()
+plt.show()
+
+print("w =", w, "b =", b)
+print("Training predictions:", train_prediction)
+print("Götze:", goetze_prediction)
 """,
-            language="python",
-        )
+    )
 
 with tab_experiments:
     st.header("Task 4 · Influence of learning rate, initialization, and order")
@@ -649,6 +686,37 @@ with tab_experiments:
         "standardization reduces the fixed-order run from hundreds of updates to only a few, "
         "while preserving the training result and Götze prediction."
     )
+    show_notebook_code(
+        "Task 4 · Compare learning settings",
+        """
+configs = [
+    ("Baseline", 1.0, [0.0, 0.0], False, 0),
+    ("Small alpha", 0.1, [0.0, 0.0], False, 0),
+    ("Positive init", 1.0, [0.1, 0.1], False, 0),
+    ("Shuffled", 1.0, [0.0, 0.0], True, 3),
+]
+
+rows = []
+for name, alpha, w0, shuffle, seed in configs:
+    run = train_perceptron(
+        X, y, learning_rate=alpha, initial_weights=w0,
+        max_epochs=600, shuffle=shuffle, random_state=seed
+    )
+    rows.append({
+        "Configuration": name,
+        "Updates": run.updates,
+        "Final w": np.round(run.weights, 3),
+        "Converged": run.converged,
+    })
+
+pd.DataFrame(rows)
+
+# Optional scaling check recommended in the lecture notes
+X_standardized = (X - X.mean(axis=0)) / X.std(axis=0)
+scaled_run = train_perceptron(X_standardized, y, max_epochs=1000)
+print("Updates after standardization:", scaled_run.updates)
+""",
+    )
 
 with tab_limits:
     st.header("Task 5 · Nonseparable data and practical limits")
@@ -699,6 +767,28 @@ with tab_limits:
             "on nonseparable data. A pocket variant, logistic regression, or a soft-margin SVM is "
             "more appropriate in that setting."
         )
+    show_notebook_code(
+        "Task 5 · Create and diagnose a nonseparable case",
+        """
+X_impossible = X.copy()
+X_impossible[3] = X_impossible[0]  # Gomez gets Müller's features
+
+run = train_perceptron(
+    X_impossible, y, learning_rate=1.0,
+    max_epochs=60, shuffle=False
+)
+
+plt.step(range(1, len(run.errors) + 1), run.errors, where="mid")
+plt.xlabel("Epoch")
+plt.ylabel("Misclassified samples")
+plt.show()
+
+print("Converged:", run.converged)
+print("Final accuracy:", accuracy(
+    X_impossible, y, run.weights, run.bias
+))
+""",
+    )
 
 with tab_synthetic:
     st.header("Task 6 · Random synthetic data")
@@ -754,4 +844,28 @@ with tab_synthetic:
     st.success(
         "Plausibility check: the separated Gaussian clusters converge to 100% training accuracy; "
         "the overlapping sample generally reaches the epoch limit and retains errors."
+    )
+    show_notebook_code(
+        "Task 6 · Compare synthetic data sets",
+        """
+results = []
+for kind in ["separable", "nonseparable"]:
+    X_syn, y_syn = make_synthetic_data(
+        kind, n_per_class=30, random_state=12
+    )
+    run = train_perceptron(
+        X_syn, y_syn, learning_rate=0.5,
+        max_epochs=100, shuffle=True, random_state=12
+    )
+    results.append({
+        "Dataset": kind,
+        "Converged": run.converged,
+        "Updates": run.updates,
+        "Accuracy": accuracy(
+            X_syn, y_syn, run.weights, run.bias
+        ),
+    })
+
+pd.DataFrame(results)
+""",
     )
