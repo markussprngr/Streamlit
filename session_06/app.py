@@ -764,12 +764,48 @@ print("Updates after standardization:", scaled_run.updates)
 with tab_limits:
     st.header("Task 5 · Nonseparable data and practical limits")
     st.markdown(
-        "We make the task impossible with one feature modification: Gomez is moved exactly onto "
-        "Müller's coordinates while keeping label −1. Two identical feature vectors now require "
-        "opposite labels, so no classifier can separate them."
+        "Choose one of three single-feature modifications. Each example makes perfect linear "
+        "separation impossible for a different geometric reason."
     )
+
+    impossible_examples = {
+        "1 · Contradictory duplicate": {
+            "description": (
+                "**Change:** Gomez's goals: `8 → 10`. Müller and Gomez then have identical "
+                "features but opposite labels. The same point cannot receive both predictions."
+            ),
+            "change": (3, 0, 10.0),
+            "title": "Identical coordinates with opposite labels",
+        },
+        "2 · Alternating points on one line": {
+            "description": (
+                "**Change:** Reus's PCR value: `0.6 → 0.1`. Reus, Gomez, and Müller lie on the "
+                "horizontal line `PCR = 0.1` in the order `+1, −1, +1`. A straight boundary "
+                "cannot separate this alternating pattern."
+            ),
+            "change": (2, 1, 0.1),
+            "title": "Alternating labels on PCR = 0.1",
+        },
+        "3 · Crossing class geometry": {
+            "description": (
+                "**Change:** Gomez's PCR value: `0.1 → 0.4`. The line segment connecting the "
+                "two positive samples crosses the segment connecting the two negative samples. "
+                "Their convex hulls overlap, so no separating line exists."
+            ),
+            "change": (3, 1, 0.4),
+            "title": "Overlapping class geometry",
+        },
+    }
+    selected_example = st.selectbox(
+        "Nonseparable modification",
+        list(impossible_examples),
+    )
+    example = impossible_examples[selected_example]
+    st.markdown(example["description"])
+
     X_IMPOSSIBLE = X_TRAIN.copy()
-    X_IMPOSSIBLE[3] = X_IMPOSSIBLE[0]
+    row, column, new_value = example["change"]
+    X_IMPOSSIBLE[row, column] = new_value
     impossible = train_perceptron(
         X_IMPOSSIBLE,
         Y_TRAIN,
@@ -778,6 +814,16 @@ with tab_limits:
         shuffle=False,
     )
     original = train_perceptron(X_TRAIN, Y_TRAIN, max_epochs=500)
+
+    modified_data = pd.DataFrame(
+        {
+            "Name": NAMES,
+            "Goals": X_IMPOSSIBLE[:, 0],
+            "PCR value": X_IMPOSSIBLE[:, 1],
+            "Label": Y_TRAIN,
+        }
+    )
+    st.dataframe(modified_data, width="stretch", hide_index=True)
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Original converged", "Yes" if original.converged else "No")
@@ -796,7 +842,7 @@ with tab_limits:
             impossible.weights,
             impossible.bias,
             names=NAMES,
-            title="Impossible labels at identical coordinates",
+            title=example["title"],
             show_regions=True,
         )
         st.pyplot(fig, width="stretch")
@@ -811,10 +857,17 @@ with tab_limits:
             "more appropriate in that setting."
         )
     show_notebook_code(
-        "Task 5 · Create and diagnose a nonseparable case",
+        "Task 5 · Try three nonseparable modifications",
         """
+examples = {
+    "duplicate": (3, 0, 10.0),   # Gomez goals: 8 -> 10
+    "collinear": (2, 1, 0.1),    # Reus PCR: 0.6 -> 0.1
+    "overlap": (3, 1, 0.4),      # Gomez PCR: 0.1 -> 0.4
+}
+
+row, column, new_value = examples["duplicate"]
 X_impossible = X.copy()
-X_impossible[3] = X_impossible[0]  # Gomez gets Müller's features
+X_impossible[row, column] = new_value
 
 run = train_perceptron(
     X_impossible, y, learning_rate=1.0,
