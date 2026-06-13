@@ -17,6 +17,19 @@ class PerceptronResult:
     weight_history: list[np.ndarray]
     bias_history: list[float]
 
+    @property
+    def augmented_weights(self):
+        """Return (w_1, ..., w_d, b), matching the lab preparation notation."""
+        return np.append(self.weights, self.bias)
+
+
+def augment_with_bias(X):
+    """Append a column of ones so the bias is the final weight component."""
+    X = np.asarray(X, dtype=float)
+    if X.ndim != 2:
+        raise ValueError("X must be a two-dimensional array.")
+    return np.hstack((X, np.ones((X.shape[0], 1))))
+
 
 def predict(X, weights, bias):
     """Predict labels in {-1, +1}; a zero score belongs to class +1."""
@@ -39,7 +52,7 @@ def train_perceptron(
     shuffle=False,
     random_state=0,
 ):
-    """Train the classic online perceptron and record its full trajectory."""
+    """Train the classic online perceptron using bias-last augmented vectors."""
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=int)
 
@@ -54,20 +67,21 @@ def train_perceptron(
     if max_epochs < 1:
         raise ValueError("max_epochs must be at least 1.")
 
-    weights = (
+    X_aug = augment_with_bias(X)
+    feature_weights = (
         np.zeros(X.shape[1], dtype=float)
         if initial_weights is None
         else np.asarray(initial_weights, dtype=float).copy()
     )
-    if weights.shape != (X.shape[1],):
+    if feature_weights.shape != (X.shape[1],):
         raise ValueError("initial_weights has the wrong dimension.")
 
-    bias = float(initial_bias)
+    augmented_weights = np.append(feature_weights, float(initial_bias))
     rng = np.random.default_rng(random_state)
     errors = []
     updates_per_epoch = []
-    weight_history = [weights.copy()]
-    bias_history = [bias]
+    weight_history = [feature_weights.copy()]
+    bias_history = [float(initial_bias)]
     updates = 0
 
     for epoch in range(1, max_epochs + 1):
@@ -75,22 +89,21 @@ def train_perceptron(
         order = rng.permutation(len(X)) if shuffle else np.arange(len(X))
 
         for idx in order:
-            signed_score = y[idx] * (weights @ X[idx] + bias)
+            signed_score = y[idx] * (augmented_weights @ X_aug[idx])
             if signed_score <= 0:
-                weights += learning_rate * y[idx] * X[idx]
-                bias += learning_rate * y[idx]
+                augmented_weights += learning_rate * y[idx] * X_aug[idx]
                 updates += 1
                 epoch_errors += 1
-                weight_history.append(weights.copy())
-                bias_history.append(bias)
+                weight_history.append(augmented_weights[:-1].copy())
+                bias_history.append(float(augmented_weights[-1]))
 
         updates_per_epoch.append(epoch_errors)
-        current_errors = int(np.sum(y * (X @ weights + bias) <= 0))
+        current_errors = int(np.sum(y * (X_aug @ augmented_weights) <= 0))
         errors.append(current_errors)
         if epoch_errors == 0:
             return PerceptronResult(
-                weights,
-                bias,
+                augmented_weights[:-1].copy(),
+                float(augmented_weights[-1]),
                 True,
                 epoch,
                 updates,
@@ -101,8 +114,8 @@ def train_perceptron(
             )
 
     return PerceptronResult(
-        weights,
-        bias,
+        augmented_weights[:-1].copy(),
+        float(augmented_weights[-1]),
         False,
         max_epochs,
         updates,
@@ -122,6 +135,8 @@ def make_synthetic_data(kind="separable", n_per_class=30, random_state=7):
     elif kind == "nonseparable":
         negative = rng.normal(loc=(0.0, 0.0), scale=1.25, size=(n_per_class, 2))
         positive = rng.normal(loc=(0.45, 0.35), scale=1.25, size=(n_per_class, 2))
+        # Opposite labels at identical coordinates guarantee nonseparability.
+        positive[0] = negative[0]
     else:
         raise ValueError("kind must be 'separable' or 'nonseparable'.")
 

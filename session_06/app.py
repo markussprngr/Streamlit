@@ -100,6 +100,22 @@ st.markdown(
         margin: .6rem 0 1rem;
         box-shadow: 0 4px 12px rgba(23,33,29,.05);
     }
+    .formula-label {
+        color: var(--muted);
+        font-family: "Menlo", "SFMono-Regular", monospace;
+        font-size: .76rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        margin-bottom: -.3rem;
+        text-transform: uppercase;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: var(--surface);
+        border-color: var(--line) !important;
+        border-left: 7px solid var(--coral) !important;
+        border-radius: 0 10px 10px 0 !important;
+        box-shadow: 0 4px 12px rgba(23,33,29,.05);
+    }
     .status-good, .status-warn {
         border-radius: 10px;
         padding: .9rem 1rem;
@@ -465,60 +481,69 @@ plt.show()
 
 with tab_train:
     st.header("Tasks 2 & 3 · Perceptron training, prediction, and boundary")
-    controls, results = st.columns([0.8, 1.7], gap="large")
-    with controls:
-        alpha = st.select_slider(
-            "Learning rate α",
-            options=[0.05, 0.1, 0.25, 0.5, 1.0],
-            value=1.0,
-        )
-        max_epochs = st.slider("Maximum epochs", 50, 1000, 500, 25)
-        shuffle = st.toggle("Shuffle samples each epoch", value=False)
-        seed = st.number_input("Random seed", min_value=0, max_value=999, value=7)
-        initial = st.selectbox(
-            "Initial weights",
-            ["Zeros", "Small positive", "Custom"],
-        )
-        if initial == "Zeros":
-            initial_weights = np.zeros(2)
-            initial_bias = 0.0
-        elif initial == "Small positive":
-            initial_weights = np.array([0.1, 0.1])
-            initial_bias = 0.1
-        else:
-            iw1 = st.number_input("Initial w₁", value=0.0, step=0.1)
-            iw2 = st.number_input("Initial w₂", value=0.0, step=0.1)
-            initial_bias = st.number_input("Initial bias b", value=0.0, step=0.1)
-            initial_weights = np.array([iw1, iw2])
+    result = train_perceptron(
+        X_TRAIN,
+        Y_TRAIN,
+        learning_rate=1.0,
+        initial_weights=np.zeros(2),
+        initial_bias=0.0,
+        max_epochs=1000,
+        shuffle=False,
+    )
+    goetze_score = float((GOETZE @ result.weights + result.bias)[0])
+    goetze_prediction = int(predict(GOETZE, result.weights, result.bias)[0])
 
-        result = train_perceptron(
-            X_TRAIN,
-            Y_TRAIN,
-            learning_rate=alpha,
-            initial_weights=initial_weights,
-            initial_bias=initial_bias,
-            max_epochs=max_epochs,
-            shuffle=shuffle,
-            random_state=int(seed),
-        )
+    formulas, results = st.columns([0.95, 1.55], gap="large")
+    with formulas:
+        with st.container(border=True):
+            st.markdown('<div class="formula-label">1 · Perceptron update</div>', unsafe_allow_html=True)
+            st.latex(r"y_i(\mathbf{w}^{\top}\mathbf{x}_i+b)\leq 0")
+            st.latex(
+                r"\mathbf{w}\leftarrow\mathbf{w}+\alpha y_i\mathbf{x}_i,"
+                r"\qquad b\leftarrow b+\alpha y_i"
+            )
+        with st.container(border=True):
+            st.markdown('<div class="formula-label">2 · Augmented vectors</div>', unsafe_allow_html=True)
+            st.latex(
+                r"\tilde{\mathbf{x}}_i="
+                r"\begin{pmatrix}\mathbf{x}_i\\1\end{pmatrix},"
+                r"\qquad"
+                r"\tilde{\mathbf{w}}="
+                r"\begin{pmatrix}\mathbf{w}\\b\end{pmatrix}"
+            )
+        with st.container(border=True):
+            st.markdown('<div class="formula-label">3 · Hyperplane</div>', unsafe_allow_html=True)
+            st.latex(r"\mathbf{w}^{\top}\mathbf{x}+b=0")
+            st.latex(
+                r"\tilde{\mathbf{w}}\leftarrow"
+                r"\tilde{\mathbf{w}}+\alpha y_i\tilde{\mathbf{x}}_i"
+            )
 
-        goetze_score = float((GOETZE @ result.weights + result.bias)[0])
-        goetze_prediction = int(predict(GOETZE, result.weights, result.bias)[0])
-        train_accuracy = accuracy(X_TRAIN, Y_TRAIN, result.weights, result.bias)
         status_class = "status-good" if result.converged else "status-warn"
         status_text = "Converged" if result.converged else "Stopped at epoch limit"
         st.markdown(
             f'<div class="{status_class}"><b>{status_text}</b><br>'
-            f'{result.updates} updates across {result.epochs} epochs</div>',
+            f'Fixed setup: α = 1, zero initialization, fixed order.<br>'
+            f'{result.updates} updates across {result.epochs} epochs.</div>',
             unsafe_allow_html=True,
         )
 
     with results:
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Training accuracy", f"{100 * train_accuracy:.0f}%")
-        m2.metric("Updates", result.updates)
-        m3.metric("Götze score", f"{goetze_score:.3f}")
-        m4.metric("Götze prediction", f"{goetze_prediction:+d}")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Updates", result.updates)
+        m2.metric("Götze score", f"{goetze_score:.3f}")
+        m3.metric("Götze prediction", f"{goetze_prediction:+d}")
+        st.markdown("**Final augmented weight vector**")
+        st.latex(
+            rf"\tilde{{\mathbf{{w}}}}^*="
+            rf"\begin{{pmatrix}}"
+            rf"{result.augmented_weights[0]:g}\\"
+            rf"{result.augmented_weights[1]:g}\\"
+            rf"{result.augmented_weights[2]:g}"
+            rf"\end{{pmatrix}}"
+            rf"="
+            rf"\begin{{pmatrix}}w_1\\w_2\\b\end{{pmatrix}}"
+        )
 
         fig = boundary_plot(
             X_TRAIN,
@@ -543,35 +568,53 @@ with tab_train:
         }
     )
     st.dataframe(prediction_table, width="stretch", hide_index=True)
-    st.caption(
-        f"Learned parameters: w = {np.round(result.weights, 4).tolist()}, "
-        f"b = {result.bias:.4f}. The separator is not unique; settings can change the learned boundary."
+    st.success(
+        "The training data is linearly separable: the perceptron converges to a hyperplane that "
+        "classifies every training sample correctly. The separating hyperplane is not unique."
     )
 
     show_notebook_code(
         "Tasks 2 & 3 · Train, predict, and plot the boundary",
         """
-def perceptron_from_scratch(X, y, alpha=1.0, max_epochs=500):
-    w = np.zeros(X.shape[1])
-    b = 0.0
+def augment_with_bias(X):
+    ones = np.ones((X.shape[0], 1))
+    return np.hstack((X, ones))
+
+
+def perceptron_train(X, y, alpha=1.0, w0=None, max_epochs=1000, order=None):
+    X_aug = augment_with_bias(X)
+    w = np.zeros(X_aug.shape[1]) if w0 is None else np.array(w0, dtype=float).copy()
+    update_history = []
 
     for epoch in range(max_epochs):
-        updates = 0
-        for x_i, y_i in zip(X, y):
-            if y_i * (w @ x_i + b) <= 0:
-                w += alpha * y_i * x_i
-                b += alpha * y_i
-                updates += 1
-        if updates == 0:
-            break
-    return w, b
+        errors = 0
+        indices = np.arange(len(y)) if order is None else np.array(order)
+        for idx in indices:
+            margin = y[idx] * np.dot(w, X_aug[idx])
+            if margin <= 0:
+                w += alpha * y[idx] * X_aug[idx]
+                errors += 1
 
-w, b = perceptron_from_scratch(X, y)
-train_prediction = np.where(X @ w + b >= 0, +1, -1)
-goetze_prediction = np.where(x_goetze @ w + b >= 0, +1, -1)[0]
+        predictions = np.where(X_aug @ w >= 0, +1, -1)
+        error_rate = np.mean(predictions != y)
+        update_history.append(
+            {"epoch": epoch + 1, "updates": errors,
+             "error_rate": error_rate, "w": w.copy()}
+        )
+        if errors == 0:
+            return w, True, pd.DataFrame(update_history)
+
+    return w, False, pd.DataFrame(update_history)
+
+
+w_star, converged, history_df = perceptron_train(X, y)
+X_aug = augment_with_bias(X)
+train_prediction = np.where(X_aug @ w_star >= 0, +1, -1)
+goetze_aug = np.r_[x_goetze[0], 1.0]
+goetze_prediction = int(np.sign(goetze_aug @ w_star) or 1)
 
 x_line = np.linspace(X[:, 0].min() - 1, X[:, 0].max() + 1, 200)
-y_line = -(w[0] * x_line + b) / w[1]
+y_line = -(w_star[0] * x_line + w_star[2]) / w_star[1]
 plt.scatter(X[:, 0], X[:, 1], c=y, cmap="coolwarm")
 plt.scatter(*x_goetze[0], marker="*", s=180, label="Götze")
 plt.plot(x_line, y_line, "k-", label="Decision boundary")
@@ -580,7 +623,7 @@ plt.ylabel("PCR value")
 plt.legend()
 plt.show()
 
-print("w =", w, "b =", b)
+print("Final augmented w =", w_star)
 print("Training predictions:", train_prediction)
 print("Götze:", goetze_prediction)
 """,
@@ -792,6 +835,10 @@ print("Final accuracy:", accuracy(
 
 with tab_synthetic:
     st.header("Task 6 · Random synthetic data")
+    st.markdown(
+        "The nonseparable sample contains one pair of identical feature vectors with opposite "
+        "labels. This guarantees nonseparability for every seed and sample-size setting."
+    )
     seed_syn = st.slider("Synthetic random seed", 0, 100, 12)
     samples = st.slider("Samples per class", 10, 80, 30, 5)
     max_epochs_syn = st.slider("Maximum synthetic epochs", 10, 300, 100, 10)
@@ -801,7 +848,7 @@ with tab_synthetic:
     for column, kind, heading in zip(
         syn_cols,
         ["separable", "nonseparable"],
-        ["Clearly separable", "Overlapping classes"],
+        ["Clearly separable", "Guaranteed nonseparable"],
     ):
         X_syn, y_syn = make_synthetic_data(kind, samples, seed_syn)
         run_syn = train_perceptron(
@@ -843,7 +890,7 @@ with tab_synthetic:
     st.dataframe(pd.DataFrame(synthetic_rows), width="stretch", hide_index=True)
     st.success(
         "Plausibility check: the separated Gaussian clusters converge to 100% training accuracy; "
-        "the overlapping sample generally reaches the epoch limit and retains errors."
+        "the contradictory sample reaches the epoch limit and retains errors."
     )
     show_notebook_code(
         "Task 6 · Compare synthetic data sets",
