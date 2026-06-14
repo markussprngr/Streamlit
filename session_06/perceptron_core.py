@@ -130,8 +130,29 @@ def make_synthetic_data(kind="separable", n_per_class=30, random_state=7):
     """Create deterministic 2D examples for the comparison task."""
     rng = np.random.default_rng(random_state)
     if kind == "separable":
-        negative = rng.normal(loc=(-2.0, -1.5), scale=0.55, size=(n_per_class, 2))
-        positive = rng.normal(loc=(2.0, 1.5), scale=0.55, size=(n_per_class, 2))
+        # A narrow margin plus large tangential spread makes learning visible
+        # while the sign of the first latent coordinate guarantees separability.
+        negative = np.column_stack(
+            (
+                -rng.uniform(0.03, 0.35, n_per_class),
+                rng.uniform(-5.0, 5.0, n_per_class),
+            )
+        )
+        positive = np.column_stack(
+            (
+                rng.uniform(0.03, 0.35, n_per_class),
+                rng.uniform(-5.0, 5.0, n_per_class),
+            )
+        )
+        angle = np.deg2rad(32.0)
+        rotation = np.array(
+            [
+                [np.cos(angle), -np.sin(angle)],
+                [np.sin(angle), np.cos(angle)],
+            ]
+        )
+        negative = negative @ rotation.T
+        positive = positive @ rotation.T
     elif kind == "nonseparable":
         negative = rng.normal(loc=(0.0, 0.0), scale=1.25, size=(n_per_class, 2))
         positive = rng.normal(loc=(0.45, 0.35), scale=1.25, size=(n_per_class, 2))

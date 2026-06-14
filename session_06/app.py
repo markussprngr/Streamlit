@@ -928,8 +928,9 @@ print("Final accuracy:", accuracy(
 with tab_synthetic:
     st.header("Task 6 · Random synthetic data")
     st.markdown(
-        "The nonseparable sample contains one pair of identical feature vectors with opposite "
-        "labels. This guarantees nonseparability for every seed and sample-size setting."
+        "The separable sample has a deliberately narrow margin, so the perceptron needs several "
+        "visible corrections before converging. The nonseparable sample contains one pair of "
+        "identical feature vectors with opposite labels, which makes perfect separation impossible."
     )
     seed_syn = st.slider("Synthetic random seed", 0, 100, 12)
     samples = st.slider("Samples per class", 10, 80, 30, 5)
@@ -985,14 +986,15 @@ with tab_synthetic:
             if kind == "separable":
                 st.caption(
                     "At epoch 0 all scores equal zero, so no sample is strictly classified. "
-                    "The first training pass needs one update and already leaves zero errors; "
-                    "the second pass confirms convergence with zero further updates."
+                    "The narrow margin and wide spread along the boundary create several learning "
+                    "epochs. Errors may fluctuate because an update that fixes one sample can "
+                    "temporarily move another sample to the wrong side."
                 )
 
     st.dataframe(pd.DataFrame(synthetic_rows), width="stretch", hide_index=True)
     st.success(
-        "Plausibility check: the separated Gaussian clusters converge to 100% training accuracy; "
-        "the contradictory sample reaches the epoch limit and retains errors."
+        "Plausibility check: the narrow-margin sample converges to 100% training accuracy after "
+        "several corrections; the contradictory sample reaches the epoch limit and retains errors."
     )
     show_notebook_code(
         "Task 6 · Compare synthetic data sets",
