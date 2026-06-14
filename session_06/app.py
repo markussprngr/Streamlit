@@ -739,35 +739,6 @@ with tab_experiments:
             "the perceptron does not maximize a unique objective."
         )
 
-    st.subheader("Recommended practical check · feature scaling")
-    scaling_runs = []
-    mean = X_TRAIN.mean(axis=0)
-    std = X_TRAIN.std(axis=0)
-    minimum = X_TRAIN.min(axis=0)
-    span = X_TRAIN.max(axis=0) - minimum
-    scaled_datasets = {
-        "Raw features": (X_TRAIN, GOETZE),
-        "Z-score standardization": ((X_TRAIN - mean) / std, (GOETZE - mean) / std),
-        "Min-max scaling": ((X_TRAIN - minimum) / span, (GOETZE - minimum) / span),
-    }
-    for scaling_name, (X_scaled, goetze_scaled) in scaled_datasets.items():
-        scaled_run = train_perceptron(X_scaled, Y_TRAIN, max_epochs=1000)
-        scaling_runs.append(
-            {
-                "Representation": scaling_name,
-                "Converged": scaled_run.converged,
-                "Epochs": scaled_run.epochs,
-                "Updates": scaled_run.updates,
-                "Training accuracy": f"{100 * accuracy(X_scaled, Y_TRAIN, scaled_run.weights, scaled_run.bias):.0f}%",
-                "Götze": int(predict(goetze_scaled, scaled_run.weights, scaled_run.bias)[0]),
-            }
-        )
-    st.dataframe(pd.DataFrame(scaling_runs), width="stretch", hide_index=True)
-    st.caption(
-        "The lecture notes explicitly recommend comparable feature scales. Here, z-score "
-        "standardization reduces the fixed-order run from hundreds of updates to only a few, "
-        "while preserving the training result and Götze prediction."
-    )
     show_notebook_code(
         "Task 4 · Compare learning settings",
         """
@@ -792,11 +763,6 @@ for name, alpha, w0, shuffle, seed in configs:
     })
 
 pd.DataFrame(rows)
-
-# Optional scaling check recommended in the lecture notes
-X_standardized = (X - X.mean(axis=0)) / X.std(axis=0)
-scaled_run = train_perceptron(X_standardized, y, max_epochs=1000)
-print("Updates after standardization:", scaled_run.updates)
 """,
     )
 
