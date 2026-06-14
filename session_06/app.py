@@ -405,6 +405,45 @@ def error_plot(errors, title="Classification errors after each epoch"):
     return fig
 
 
+def training_history_plot(result, n_samples, title="Training history"):
+    """Show both remaining errors and the updates made during each epoch."""
+    fig, ax = plt.subplots(figsize=(7.2, 3.6))
+    fig.patch.set_alpha(0)
+    ax.set_facecolor("#fffdf7")
+
+    epochs = np.arange(0, len(result.errors) + 1)
+    errors = np.r_[n_samples, result.errors]
+    ax.plot(
+        epochs,
+        errors,
+        color="#e95d45",
+        marker="o",
+        linewidth=2.2,
+        label="Errors after epoch",
+        zorder=3,
+    )
+    ax.bar(
+        epochs[1:],
+        result.updates_per_epoch,
+        color="#177e68",
+        alpha=0.45,
+        label="Updates during epoch",
+    )
+    ax.set_xlabel("Epoch (0 = before training)")
+    ax.set_ylabel("Number of samples")
+    ax.set_title(title, loc="left", fontweight="bold")
+    tick_step = max(1, int(np.ceil(len(result.errors) / 10)))
+    ticks = np.arange(0, len(result.errors) + 1, tick_step)
+    if ticks[-1] != len(result.errors):
+        ticks = np.r_[ticks, len(result.errors)]
+    ax.set_xticks(ticks)
+    ax.set_ylim(bottom=0)
+    ax.grid(axis="y", alpha=0.2)
+    ax.legend(frameon=True, facecolor="#fffdf7")
+    fig.tight_layout()
+    return fig
+
+
 st.markdown(
     """
     <div class="hero">
@@ -936,9 +975,19 @@ with tab_synthetic:
             )
             st.pyplot(fig, width="stretch")
             plt.close(fig)
-            fig = error_plot(run_syn.errors, f"Error history · {heading}")
+            fig = training_history_plot(
+                run_syn,
+                len(X_syn),
+                f"Training history · {heading}",
+            )
             st.pyplot(fig, width="stretch")
             plt.close(fig)
+            if kind == "separable":
+                st.caption(
+                    "At epoch 0 all scores equal zero, so no sample is strictly classified. "
+                    "The first training pass needs one update and already leaves zero errors; "
+                    "the second pass confirms convergence with zero further updates."
+                )
 
     st.dataframe(pd.DataFrame(synthetic_rows), width="stretch", hide_index=True)
     st.success(
