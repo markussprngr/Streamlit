@@ -550,13 +550,13 @@ with tab_train:
                 r"\tilde{\mathbf{w}}="
                 r"\begin{pmatrix}\mathbf{w}\\b\end{pmatrix}"
             )
-        with st.container(border=True):
-            st.markdown('<div class="formula-label">3 · Hyperplane</div>', unsafe_allow_html=True)
-            st.latex(r"\mathbf{w}^{\top}\mathbf{x}+b=0")
             st.latex(
                 r"\tilde{\mathbf{w}}\leftarrow"
                 r"\tilde{\mathbf{w}}+\alpha y_i\tilde{\mathbf{x}}_i"
             )
+        with st.container(border=True):
+            st.markdown('<div class="formula-label">3 · Hyperplane</div>', unsafe_allow_html=True)
+            st.latex(r"\mathbf{w}^{\top}\mathbf{x}+b=0")
 
         status_class = "status-good" if result.converged else "status-warn"
         status_text = "Converged" if result.converged else "Stopped at epoch limit"
